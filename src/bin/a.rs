@@ -9,6 +9,8 @@
 */
 
 
+use std::collections::VecDeque;
+use std::process::exit;
 use std::sync::Mutex;
 use lazy_static::lazy::Lazy;
 // -*- coding:utf-8-unix -*-
@@ -35,11 +37,66 @@ impl Walls {
     }
 }
 
-fn dfs(i: usize, j: usize, n: usize ,visited: &mut Vec<Vec<bool>>, walls: &Walls) {
-    let dj: Vec<isize> = vec![-1, 0, 1, 0];
+fn back_to_start(i: usize, j: usize, n: usize, walls:&Walls) {
+    //{i, j}を始点にBFS
+    let inf = 1e18 as usize;
+    let mut dist = vec![vec![inf; n]; n];
+    let mut before = vec![vec![inf; n]; n];
+
     let di: Vec<isize> = vec![0, 1, 0, -1];
+    let dj: Vec<isize> = vec![-1, 0, 1, 0];
+
+    let r#move = vec!['L', 'D', 'R', 'U'];
+
+    let mut que = VecDeque::new();
+    que.push_back((i, j));
+    dist[i][j] == 0;
+    before[i][j] == 4;
+    while let Some((pi, pj)) = que.pop_front() {
+        for r in 0..4 {
+            let ni = pi as isize + di[r];
+            let nj = pj as isize + dj[r];
+            if Walls::is_through(walls, pi, pj, ni, nj, n, r) && dist[ni as usize][nj as usize] == inf {
+                dist[ni as usize][nj as usize] = dist[pi][pj] + 1;
+                before[ni as usize][nj as usize] = r;
+                que.push_back((ni as usize, nj as usize));
+            }
+        }
+    }
+
+    let mut stk = Vec::new();
+    let mut now_i = 0usize;
+    let mut now_j = 0usize;
+
+    while !(now_i == i && now_j == j) {
+        stk.push(r#move[before[now_i][now_j]]);
+        let ni = (now_i as isize + di[(before[now_i][now_j] + 2) % 4]) as usize;
+        let nj = (now_j as isize + dj[(before[now_i][now_j] + 2) % 4]) as usize;
+
+        now_i = ni;
+        now_j = nj;
+    }
+
+    while let Some(c) = stk.pop() {
+        print!("{}", c);
+    }
+    println!();
+    exit(0);
+}
+
+fn dfs(i: usize, j: usize, n: usize ,visited: &mut Vec<Vec<bool>>, walls: &Walls) {
+    let di: Vec<isize> = vec![0, 1, 0, -1];
+    let dj: Vec<isize> = vec![-1, 0, 1, 0];
+
     let r#move = vec!['L', 'D', 'R', 'U'];
     visited[i][j] = true;
+
+    if visited.iter().all(|v| v.iter().all(|b| *b)) {
+        // 即座に0, 0に帰る
+        back_to_start(i, j, n, walls);
+    }
+
+
     for r in 0..4 {
         let ni = i as isize + di[r];
         let nj = j as isize + dj[r];
