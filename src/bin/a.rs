@@ -15,7 +15,7 @@ use std::process::exit;
 use proconio::input;
 use proconio::marker::Chars;
 
-static INF: usize = 1e18 as usize;
+static INF: usize = 16 as usize;
 static AREAS: usize = 16;
 struct Walls {
     wh: Vec<Vec<char>>,
@@ -62,8 +62,8 @@ fn solve(){
     // TODO: AREASを使って書き換えたい
     for i in 0..4 {
         for j in 0..4 {
-            color[i / 3 * n][j / 3 * n] = i * 4 + j;
-            que.push_back((i / 3 * n, j / 3 * n));
+            color[(i * n / 4) + 2][(j * n / 4) + 2] = i * 4 + j;
+            que.push_back(((i * n / 4) + 2, (j * n / 4) + 2));
         }
     }
 
@@ -77,7 +77,7 @@ fn solve(){
             }
         }
     }
-
+    
     /*
     エリアごとの汚れやすさを求める(sum_d / cnt)
     平均でやる or 総和でやる ?
@@ -129,6 +129,7 @@ fn solve(){
             }
         }
     }
+
 }
 fn main() {
     let mut i: usize = 1;
