@@ -15,7 +15,7 @@ use std::process::exit;
 use proconio::input;
 use proconio::marker::Chars;
 
-static INF: usize = 16 as usize;
+static INF: usize = 1e18 as usize;
 static AREAS: usize = 16;
 struct Walls {
     wh: Vec<Vec<char>>,
@@ -41,6 +41,53 @@ impl Walls {
     }
 }
 
+/*任意の地点から(0, 0)に戻る*/
+fn back_to_start(i: usize, j: usize, n: usize, walls:&Walls) {
+    //{i, j}を始点にBFS
+    let mut dist = vec![vec![INF; n]; n];
+    let mut before = vec![vec![INF; n]; n];
+
+    let di: Vec<isize> = vec![0, 1, 0, -1];
+    let dj: Vec<isize> = vec![-1, 0, 1, 0];
+
+    let r#move = vec!['L', 'D', 'R', 'U'];
+
+    let mut que = VecDeque::new();
+    que.push_back((i, j));
+    dist[i][j] == 0;
+    before[i][j] == 4;
+    while let Some((pi, pj)) = que.pop_front() {
+        for r in 0..4 {
+            let ni = pi as isize + di[r];
+            let nj = pj as isize + dj[r];
+            if Walls::is_through(walls, pi, pj, n, r) && dist[ni as usize][nj as usize] == INF {
+                dist[ni as usize][nj as usize] = dist[pi][pj] + 1;
+                before[ni as usize][nj as usize] = r;
+                que.push_back((ni as usize, nj as usize));
+            }
+        }
+    }
+
+    let mut stk = Vec::new();
+    let mut now_i = 0usize;
+    let mut now_j = 0usize;
+
+    while !(now_i == i && now_j == j) {
+        stk.push(r#move[before[now_i][now_j]]);
+        let ni = (now_i as isize + di[(before[now_i][now_j] + 2) % 4]) as usize;
+        let nj = (now_j as isize + dj[(before[now_i][now_j] + 2) % 4]) as usize;
+
+        now_i = ni;
+        now_j = nj;
+    }
+
+    while let Some(c) = stk.pop() {
+        print!("{}", c);
+    }
+    println!();
+    exit(0);
+}
+
 /*
 * スタート地点と掃除するエリアを与えて、
 * エリア内をDFSする
@@ -59,7 +106,7 @@ fn cleanup_area(i: usize, j: usize, n: usize ,visited: &mut Vec<Vec<bool>>, colo
 
         if Walls::is_through(&walls, i, j, n, r)
                 && !visited[ni as usize][nj as usize]
-                && color[i][j] == color[ni][nj] {
+                && color[i][j] == color[ni as usize][nj as usize] {
             print!("{}", r#move[r]);
             cleanup_area(ni as usize, nj as usize, n ,visited, color ,walls);
             print!("{}", r#move[(r + 2) % 4]);
@@ -81,9 +128,9 @@ fn solve(){
     let di: Vec<isize> = vec![0, 1, 0, -1];
     let dj: Vec<isize> = vec![-1, 0, 1, 0];
     let r#move = vec!['L', 'D', 'R', 'U'];
+
     // エリア分け
     let mut color = vec![vec![INF; n]; n];
-
     let mut que = VecDeque::new();
     // TODO: AREASを使って書き換えたい
     for i in 0..4 {
@@ -123,7 +170,7 @@ fn solve(){
                 let ni = p_i as isize + di[r];
                 let nj = p_j as isize + dj[r];
                 if Walls::is_through(&walls, p_i, p_j, n, r) && dist_from_area[clr][ni as usize][nj as usize] == INF {
-                    dist_from_area[clr][ni][nj] = dist_from_area[clr][p_i][p_j] + 1;
+                    dist_from_area[clr][ni as usize][nj as usize] = dist_from_area[clr][p_i][p_j] + 1;
                     que.push_back((ni as usize, nj as usize));
                 }
             }
@@ -155,7 +202,7 @@ fn solve(){
     cleaned[0] = true;
 
     for i in 1..16 {
-        dirt[i] = sum_d[i] / cnt[i];
+        dirt[i] = sum_d[i];
     }
 
     while !cleaned.iter().all(|b| *b) {
@@ -196,7 +243,7 @@ fn solve(){
                     let ni = p_i as isize + di[r];
                     let nj = p_j as isize + dj[r];
                     if Walls::is_through(&walls, p_i, p_j, n, r)
-                        && dist_from_area[next_area][ni][nj] + 1 == dist_from_area[next_area][p_i][p_j] {
+                        && dist_from_area[next_area][ni as usize][nj as usize] + 1 == dist_from_area[next_area][p_i][p_j] {
                         p_i = ni as usize;
                         p_j = nj as usize;
                         print!("{}", r#move[r]);
@@ -207,6 +254,8 @@ fn solve(){
         }
         now_pos = (p_i, p_j);
     }
+
+    back_to_start(now_pos.0, now_pos.1, n, &walls);
 }
 fn main() {
     let mut i: usize = 1;
