@@ -41,6 +41,32 @@ impl Walls {
     }
 }
 
+/*
+* スタート地点と掃除するエリアを与えて、
+* エリア内をDFSする
+* 掃除したあとは、必ずはじめの位置に戻る
+*/
+fn cleanup_area(i: usize, j: usize, n: usize ,visited: &mut Vec<Vec<bool>>, color: &Vec<Vec<usize>>, walls: &Walls) {
+    let di: Vec<isize> = vec![0, 1, 0, -1];
+    let dj: Vec<isize> = vec![-1, 0, 1, 0];
+
+    let r#move = vec!['L', 'D', 'R', 'U'];
+    visited[i][j] = true;
+
+    for r in 0..4 {
+        let ni = i as isize + di[r];
+        let nj = j as isize + dj[r];
+
+        if Walls::is_through(&walls, i, j, n, r)
+                && !visited[ni as usize][nj as usize]
+                && color[i][j] == color[ni][nj] {
+            print!("{}", r#move[r]);
+            cleanup_area(ni as usize, nj as usize, n ,visited, color ,walls);
+            print!("{}", r#move[(r + 2) % 4]);
+        }
+    }
+}
+
 fn solve(){
     input! {
         n: usize,
@@ -77,7 +103,7 @@ fn solve(){
             }
         }
     }
-    
+
     /*
     エリアごとの汚れやすさを求める(sum_d / cnt)
     平均でやる or 総和でやる ?
@@ -129,7 +155,7 @@ fn solve(){
             }
         }
     }
-
+    
 }
 fn main() {
     let mut i: usize = 1;
