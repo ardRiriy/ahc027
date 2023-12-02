@@ -91,27 +91,77 @@ fn back_to_start(i: usize, j: usize, n: usize, walls:&Walls) {
 /*
 * スタート地点と掃除するエリアを与えて、
 * エリア内をDFSする
-* 掃除したあとは、必ずはじめの位置に戻る
+* 非再起で書いて、掃除終了時点の座標を返却
 */
-fn cleanup_area(i: usize, j: usize, n: usize ,visited: &mut Vec<Vec<bool>>, color: &Vec<Vec<usize>>, walls: &Walls) {
+fn cleanup_area(i: usize, j: usize, n: usize, color: &Vec<Vec<usize>>, walls: &Walls) -> (usize, usize) {
     let di: Vec<isize> = vec![0, 1, 0, -1];
     let dj: Vec<isize> = vec![-1, 0, 1, 0];
 
     let r#move = vec!['L', 'D', 'R', 'U'];
+
+    let mut pos = (i, j); // 今の位置
+
+    /* DFS */
+    let mut visited = vec![vec![false; n]; n];
     visited[i][j] = true;
 
-    for r in 0..4 {
-        let ni = i as isize + di[r];
+    let mut stk = Vec::new();
+    for r in 0..4usize {
+        let ni = i as isize+ di[r];
         let nj = j as isize + dj[r];
-
-        if Walls::is_through(&walls, i, j, n, r)
-                && !visited[ni as usize][nj as usize]
-                && color[i][j] == color[ni as usize][nj as usize] {
-            print!("{}", r#move[r]);
-            cleanup_area(ni as usize, nj as usize, n ,visited, color ,walls);
-            print!("{}", r#move[(r + 2) % 4]);
+        if Walls::is_through(walls, i, j, n, r) && color[ni as usize][nj as usize] == color[i][j] {
+            stk.push((ni, nj, r));
         }
     }
+
+    // dirの向きに移動した結果{p_i, p_j}に到達した
+    'dfs : while let Some((p_i, p_j, dir)) = stk.pop() {
+        if p_i >= 0 {
+            if !visited[p_i as usize][p_j as usize] { // 未訪問なら訪れる
+                //println!("#{} : {} {} {}", color[i][j], p_i, p_j, dir);
+
+                visited[p_i as usize][p_j as usize] = true;
+                pos = (p_i as usize, p_j as usize);
+                print!("{}", r#move[dir]);
+
+                // 帰りがけの処理を追加する
+
+                // 帰りがけはbit反転
+                stk.push((!(p_i + di[(dir + 2) % 4]), p_j + dj[(dir + 2) % 4], (dir + 2) % 4));
+
+                // 行きがけの処理を追加する
+                for r in 0..4 {
+                    let ni = p_i as isize+ di[r];
+                    let nj = p_j as isize + dj[r];
+                    if Walls::is_through(walls, p_i as usize, p_j as usize, n, r) && color[ni as usize][nj as usize] == color[i][j] {
+                        stk.push((ni, nj, r));
+                    }
+                }
+
+                // もしエリアをすべて探索しきっていた場合は打ち切って今の座標を帰す
+                for idx in 0..n {
+                    for jdx in 0..n {
+                        if color[i][j] == color[idx][jdx] && !visited[idx][jdx] {
+                            continue 'dfs;
+                        }
+                    }
+                }
+                return pos;
+            }
+        }else{
+            // 帰りがけは絶対出力
+            let ni = !p_i + di[dir];
+            let nj = p_j as isize + dj[dir];
+
+            //println!("#{} : {} {} {}", color[i][j], !p_i, p_j, dir);
+
+            pos = (!p_i as usize, p_j as usize);
+            print!("{}", r#move[dir]);
+        }
+
+
+    }
+    pos
 }
 
 fn solve(){
@@ -197,12 +247,14 @@ fn solve(){
       はじめ、色0が全部0で、汚れやすさが一番でかいところを掃除しに行く
     */
     let mut dirt = vec![0usize; AREAS];
-    let mut permutation = vec![0usize];
+    let mut permutation = vec![color[0][0]];
     let mut cleaned = vec![false; AREAS]; // 一度でも掃除済みか否かを判定
-    cleaned[0] = true;
+    cleaned[color[0][0]] = true;
 
-    for i in 1..16 {
-        dirt[i] = sum_d[i];
+    for i in 0..16 {
+        if color[0][0] != i {
+            dirt[i] = sum_d[i];
+        }
     }
 
     while !cleaned.iter().all(|b| *b) {
@@ -224,15 +276,16 @@ fn solve(){
             if i == max_idx {
                 dirt[i] = 0;
             }else{
-                dirt[i] += sum_d[i] / cnt[i];
+                dirt[i] += sum_d[i];
             }
         }
     }
+
     let mut now_pos = (0usize, 0usize);
     for (idx, &next) in permutation.iter().enumerate() {
         let (mut p_i, mut p_j) = now_pos;
         // まずは掃除をしてもらう
-        cleanup_area(p_i, p_j, n, &mut vec![vec![false; n]; n], &color, &walls);
+        (p_i, p_j) = cleanup_area(p_i, p_j, n, &color, &walls);
 
         if idx != permutation.len() - 1 {
             // 最後でなければ次のエリアに移動
