@@ -80,7 +80,7 @@ fn solve(){
 
     let di: Vec<isize> = vec![0, 1, 0, -1];
     let dj: Vec<isize> = vec![-1, 0, 1, 0];
-
+    let r#move = vec!['L', 'D', 'R', 'U'];
     // エリア分け
     let mut color = vec![vec![INF; n]; n];
 
@@ -100,6 +100,32 @@ fn solve(){
             if Walls::is_through(&walls, p_i, p_j, n, r) && color[ni as usize][nj as usize] == INF {
                 color[ni as usize][nj as usize] = color[p_i][p_j];
                 que.push_back((ni as usize, nj as usize));
+            }
+        }
+    }
+
+    /*
+    各エリアからの距離を調べる。移動用
+    */
+    let mut dist_from_area = vec![vec![vec![INF; n]; n];AREAS];
+    for clr in 0..AREAS {
+        let mut que = VecDeque::new();
+        for i in 0..n {
+            for j in 0..n {
+                if color[i][j] == clr {
+                    dist_from_area[clr][i][j] = 0;
+                    que.push_back((i, j));
+                }
+            }
+        }
+        while let Some((p_i, p_j)) = que.pop_front() {
+            for r in 0..4 {
+                let ni = p_i as isize + di[r];
+                let nj = p_j as isize + dj[r];
+                if Walls::is_through(&walls, p_i, p_j, n, r) && dist_from_area[clr][ni as usize][nj as usize] == INF {
+                    dist_from_area[clr][ni][nj] = dist_from_area[clr][p_i][p_j] + 1;
+                    que.push_back((ni as usize, nj as usize));
+                }
             }
         }
     }
@@ -155,7 +181,32 @@ fn solve(){
             }
         }
     }
-    
+    let mut now_pos = (0usize, 0usize);
+    for (idx, &next) in permutation.iter().enumerate() {
+        let (mut p_i, mut p_j) = now_pos;
+        // まずは掃除をしてもらう
+        cleanup_area(p_i, p_j, n, &mut vec![vec![false; n]; n], &color, &walls);
+
+        if idx != permutation.len() - 1 {
+            // 最後でなければ次のエリアに移動
+            let next_area = permutation[idx + 1];
+            while dist_from_area[next_area][p_i][p_j] != 0 {
+                // 距離が-1になる場所に移動
+                for r in 0..4 {
+                    let ni = p_i as isize + di[r];
+                    let nj = p_j as isize + dj[r];
+                    if Walls::is_through(&walls, p_i, p_j, n, r)
+                        && dist_from_area[next_area][ni][nj] + 1 == dist_from_area[next_area][p_i][p_j] {
+                        p_i = ni as usize;
+                        p_j = nj as usize;
+                        print!("{}", r#move[r]);
+                        break;
+                    }
+                }
+            }
+        }
+        now_pos = (p_i, p_j);
+    }
 }
 fn main() {
     let mut i: usize = 1;
