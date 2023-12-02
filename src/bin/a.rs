@@ -11,8 +11,6 @@
 
 use std::collections::VecDeque;
 use std::process::exit;
-use std::sync::Mutex;
-use lazy_static::lazy::Lazy;
 // -*- coding:utf-8-unix -*-
 use proconio::input;
 use proconio::marker::Chars;
