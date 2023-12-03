@@ -65,6 +65,15 @@ static mut STIME: f64 = -1.0;
     }
 }
 
+fn debug_grid(v: &Vec<Vec<usize>>) {
+    for i in 0..v.len() {
+        for j in 0..v[i].len() {
+            print!("{:2} ", v[i][j]);
+        }
+        println!();
+    }
+}
+
 /*任意の地点から(0, 0)に戻る*/
 fn back_to_start(i: usize, j: usize, n: usize, walls:&Walls) {
     //{i, j}を始点にBFS
@@ -155,8 +164,8 @@ fn cleanup_area(i: usize, j: usize, n: usize, color: &Vec<Vec<usize>>, walls: &W
 
                 // 行きがけの処理を追加する
                 for r in 0..4 {
-                    let ni = p_i as isize+ di[r];
-                    let nj = p_j as isize + dj[r];
+                    let ni = p_i + di[r];
+                    let nj = p_j + dj[r];
                     if Walls::is_through(walls, p_i as usize, p_j as usize, n, r) && color[ni as usize][nj as usize] == color[i][j] {
                         stk.push((ni, nj, r));
                     }
@@ -242,9 +251,9 @@ fn solve(){
     }
 
     // エリア分けのいい感じにする
-    while get_time() < 0.5 { // 時間は適当 一旦500ms
-        let random_i = rng.gen_range(0, n);
-        let random_j = rng.gen_range(0, n);
+    'l :while get_time() < 0.5 { // 時間は適当 一旦500ms
+        let random_i = rng.gen_range(0..n);
+        let random_j = rng.gen_range(0..n);
 
         let clr = color[random_i][random_j];
         if cnt[clr] <= 1 {
@@ -260,9 +269,51 @@ fn solve(){
                 && clr != color[ni as usize][nj as usize] {
                 let next_color = color[ni as usize][nj as usize];
 
-                if cnt[next_color] >= 25 {
+                if cnt[next_color] >= n * n / 16 + n / 2 {
                     continue; // エリアがデカくなりすぎないように。数字は後で見直す
                 }
+
+                /*
+                連結性判定
+                3 x 3の簡易判定がうまく作れなかったので一旦BFSで妥協
+                */
+                color[random_i][random_j] = next_color;
+                let mut start = (0usize, 0usize);
+                for idx in 0..n {
+                    for jdx in 0..n {
+                        if color[idx][jdx] == clr {
+                            start = (idx, jdx);
+                        }
+                    }
+                }
+                // BFS
+                let mut visited = vec![vec![false; n]; n];
+                let mut que = VecDeque::new();
+                que.push_back(start);
+                visited[start.0][start.1] = true;
+                while let Some((p_i, p_j)) = que.pop_front() {
+                    for dir in 0..4 {
+                        let ni = p_i as isize + di[dir];
+                        let nj = p_j as isize + dj[dir];
+                        if Walls::is_through(&walls, p_i, p_j, n, dir)
+                            && color[ni as usize][nj as usize] == clr
+                            && !visited[ni as usize][nj as usize]{
+                            que.push_back((ni as usize, nj as usize));
+                            visited[ni as usize][nj as usize] = true;
+                        }
+                    }
+                }
+                //全部到達できているか(= エリアが連結か？)
+                for idx in 0..n {
+                    for jdx in 0..n {
+                        if color[idx][jdx] == clr && !visited[idx][jdx] {
+                            // 到達できていないので戻して飛ばす’
+                            color[random_i][random_j] = clr;
+                            continue 'l;
+                        }
+                    }
+                }
+
                 // 連結でかつ違う色のとき、隣の色のほうが平均汚れが近いならそっちに渡す
                 let diff_current = (sum_d[clr] as f64 / cnt[clr] as f64 - d[random_i][random_j] as f64).abs();
                 let diff_next = (sum_d[next_color] as f64 / cnt[next_color] as f64 - d[ni as usize][nj as usize] as f64).abs();
@@ -272,15 +323,13 @@ fn solve(){
                     sum_d[next_color] += d[random_i][random_j];
                     cnt[clr] -= 1;
                     cnt[next_color] += 1;
-
-                    color[random_i][random_j] = next_color;
                     break;
+                }else{
+                    color[random_i][random_j] = clr;
                 }
             }
         }
     }
-
-    println!("{:?}", color);
 
 
     /*
