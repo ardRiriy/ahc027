@@ -251,7 +251,7 @@ fn solve(){
     }
 
     // エリア分けのいい感じにする
-    'l :while get_time() < 0.5 { // 時間は適当 一旦500ms
+    'l :while get_time() < 1.0 { // 時間は適当 一旦500ms
         let random_i = rng.gen_range(0..n);
         let random_j = rng.gen_range(0..n);
 
@@ -318,7 +318,7 @@ fn solve(){
                 let diff_current = (sum_d[clr] as f64 / cnt[clr] as f64 - d[random_i][random_j] as f64).abs();
                 let diff_next = (sum_d[next_color] as f64 / cnt[next_color] as f64 - d[ni as usize][nj as usize] as f64).abs();
 
-                if diff_next < diff_current {
+                if diff_next < diff_current || rng.gen_range(0..30) % 30 == 0{
                     sum_d[clr] -= d[random_i][random_j];
                     sum_d[next_color] += d[random_i][random_j];
                     cnt[clr] -= 1;
