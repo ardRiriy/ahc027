@@ -11,6 +11,7 @@
 
 use std::collections::VecDeque;
 use std::process::exit;
+use num_integer::Roots;
 // -*- coding:utf-8-unix -*-
 use proconio::input;
 use proconio::marker::Chars;
@@ -253,7 +254,7 @@ fn solve(){
 
     for i in 0..16 {
         if color[0][0] != i {
-            dirt[i] = sum_d[i];
+            dirt[i] = sum_d[i].sqrt();
         }
     }
 
@@ -276,7 +277,7 @@ fn solve(){
             if i == max_idx {
                 dirt[i] = 0;
             }else{
-                dirt[i] += sum_d[i];
+                dirt[i] += sum_d[i].sqrt();
             }
         }
     }
