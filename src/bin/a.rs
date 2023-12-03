@@ -11,9 +11,11 @@
 
 use std::collections::VecDeque;
 use std::process::exit;
+use num_integer::Roots;
 // -*- coding:utf-8-unix -*-
 use proconio::input;
 use proconio::marker::Chars;
+use rand::Rng;
 
 static INF: usize = 1e18 as usize;
 static AREAS: usize = 16;
@@ -37,6 +39,28 @@ impl Walls {
             true
         } else {
             false
+        }
+    }
+}
+
+#[inline]
+fn get_time() -> f64 {  // sec
+static mut STIME: f64 = -1.0;
+    let t = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap();
+    let ms = t.as_secs() as f64 + t.subsec_nanos() as f64 * 1e-9;
+    unsafe {
+        if STIME < 0.0 {
+            STIME = ms;
+        }
+        #[cfg(feature = "local")]
+        {
+            (ms - STIME) * 0.85
+        }
+        #[cfg(not(feature = "local"))]
+        {
+            ms - STIME
         }
     }
 }
@@ -179,6 +203,8 @@ fn solve(){
     let dj: Vec<isize> = vec![-1, 0, 1, 0];
     let r#move = vec!['L', 'D', 'R', 'U'];
 
+    let mut rng = rand::thread_rng();
+
     // エリア分け
     let mut color = vec![vec![INF; n]; n];
     let mut que = VecDeque::new();
@@ -200,6 +226,62 @@ fn solve(){
             }
         }
     }
+
+    /*
+    エリアごとの汚れやすさを求める(sum_d / cnt)
+    平均でやる or 総和でやる ?
+    */
+    let mut sum_d = vec![0usize; AREAS];
+    let mut cnt = vec![0usize; AREAS];
+
+    for i in 0..n {
+        for j in 0..n {
+            sum_d[color[i][j]] += d[i][j];
+            cnt[color[i][j]] += 1;
+        }
+    }
+
+    // エリア分けのいい感じにする
+    while get_time() < 0.5 { // 時間は適当 一旦500ms
+        let random_i = rng.gen_range(0, n);
+        let random_j = rng.gen_range(0, n);
+
+        let clr = color[random_i][random_j];
+        if cnt[clr] <= 1 {
+            // エリアがなくなるのは困るので...
+            continue;
+        }
+
+        // 周りに自分と違う色があるか探す
+        for r in 0..4 {
+            let ni = random_i as isize + di[r];
+            let nj = random_j as isize + dj[r];
+            if Walls::is_through(&walls, random_i, random_j, n, r)
+                && clr != color[ni as usize][nj as usize] {
+                let next_color = color[ni as usize][nj as usize];
+
+                if cnt[next_color] >= 25 {
+                    continue; // エリアがデカくなりすぎないように。数字は後で見直す
+                }
+                // 連結でかつ違う色のとき、隣の色のほうが平均汚れが近いならそっちに渡す
+                let diff_current = (sum_d[clr] as f64 / cnt[clr] as f64 - d[random_i][random_j] as f64).abs();
+                let diff_next = (sum_d[next_color] as f64 / cnt[next_color] as f64 - d[ni as usize][nj as usize] as f64).abs();
+
+                if diff_next < diff_current {
+                    sum_d[clr] -= d[random_i][random_j];
+                    sum_d[next_color] += d[random_i][random_j];
+                    cnt[clr] -= 1;
+                    cnt[next_color] += 1;
+
+                    color[random_i][random_j] = next_color;
+                    break;
+                }
+            }
+        }
+    }
+
+    println!("{:?}", color);
+
 
     /*
     各エリアからの距離を調べる。移動用
@@ -228,21 +310,6 @@ fn solve(){
     }
 
     /*
-    エリアごとの汚れやすさを求める(sum_d / cnt)
-    平均でやる or 総和でやる ?
-       => 平均で
-    */
-    let mut sum_d = vec![0usize; AREAS];
-    let mut cnt = vec![0usize; AREAS];
-
-    for i in 0..n {
-        for j in 0..n {
-            sum_d[color[i][j]] += d[i][j];
-            cnt[color[i][j]] += 1;
-        }
-    }
-
-    /*
       順番を決める
       はじめ、色0が全部0で、汚れやすさが一番でかいところを掃除しに行く
     */
@@ -253,7 +320,7 @@ fn solve(){
 
     for i in 0..16 {
         if color[0][0] != i {
-            dirt[i] = sum_d[i];
+            dirt[i] = sum_d[i] / cnt[i];
         }
     }
 
@@ -276,7 +343,7 @@ fn solve(){
             if i == max_idx {
                 dirt[i] = 0;
             }else{
-                dirt[i] += sum_d[i];
+                dirt[i] += sum_d[i].sqrt();
             }
         }
     }
@@ -312,7 +379,7 @@ fn solve(){
 }
 fn main() {
     let mut i: usize = 1;
-
+    get_time();
 /*    /* 複数テストケースならコメントアウトを外す */
     let mut input = String::new();
     io::stdout().flush().unwrap();
