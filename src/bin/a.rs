@@ -15,6 +15,7 @@ use num_integer::Roots;
 // -*- coding:utf-8-unix -*-
 use proconio::input;
 use proconio::marker::Chars;
+use rand::Rng;
 
 static INF: usize = 1e18 as usize;
 static AREAS: usize = 16;
@@ -39,6 +40,37 @@ impl Walls {
         } else {
             false
         }
+    }
+}
+
+#[inline]
+fn get_time() -> f64 {  // sec
+static mut STIME: f64 = -1.0;
+    let t = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap();
+    let ms = t.as_secs() as f64 + t.subsec_nanos() as f64 * 1e-9;
+    unsafe {
+        if STIME < 0.0 {
+            STIME = ms;
+        }
+        #[cfg(feature = "local")]
+        {
+            (ms - STIME) * 0.85
+        }
+        #[cfg(not(feature = "local"))]
+        {
+            ms - STIME
+        }
+    }
+}
+
+fn debug_grid(v: &Vec<Vec<usize>>) {
+    for i in 0..v.len() {
+        for j in 0..v[i].len() {
+            print!("{:2} ", v[i][j]);
+        }
+        println!();
     }
 }
 
@@ -132,8 +164,9 @@ fn cleanup_area(i: usize, j: usize, n: usize, color: &Vec<Vec<usize>>, walls: &W
 
                 // 行きがけの処理を追加する
                 for r in 0..4 {
-                    let ni = p_i as isize+ di[r];
-                    let nj = p_j as isize + dj[r];
+                    let ni = p_i + di[r];
+                    let nj = p_j + dj[r];
+
                     if Walls::is_through(walls, p_i as usize, p_j as usize, n, r) && color[ni as usize][nj as usize] == color[i][j] {
                         stk.push((ni, nj, r));
                     }
@@ -179,6 +212,9 @@ fn solve(){
     let di: Vec<isize> = vec![0, 1, 0, -1];
     let dj: Vec<isize> = vec![-1, 0, 1, 0];
     let r#move = vec!['L', 'D', 'R', 'U'];
+
+
+    let mut rng = rand::thread_rng();
 
     // エリア分け
     let mut color = vec![vec![INF; n]; n];
@@ -313,7 +349,7 @@ fn solve(){
 }
 fn main() {
     let mut i: usize = 1;
-
+    get_time();
 /*    /* 複数テストケースならコメントアウトを外す */
     let mut input = String::new();
     io::stdout().flush().unwrap();
