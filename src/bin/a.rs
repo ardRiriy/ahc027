@@ -75,7 +75,7 @@ fn debug_grid(v: &Vec<Vec<usize>>) {
 }
 
 /*任意の地点から(0, 0)に戻る*/
-fn back_to_start(i: usize, j: usize, n: usize, walls:&Walls) {
+fn back_to_start(i: usize, j: usize, n: usize, routes: &mut Vec<(usize, usize)> ,walls:&Walls) {
     //{i, j}を始点にBFS
     let mut dist = vec![vec![INF; n]; n];
     let mut before = vec![vec![INF; n]; n];
@@ -106,7 +106,7 @@ fn back_to_start(i: usize, j: usize, n: usize, walls:&Walls) {
     let mut now_j = 0usize;
 
     while !(now_i == i && now_j == j) {
-        stk.push(r#move[before[now_i][now_j]]);
+        stk.push((now_i, now_j));
         let ni = (now_i as isize + di[(before[now_i][now_j] + 2) % 4]) as usize;
         let nj = (now_j as isize + dj[(before[now_i][now_j] + 2) % 4]) as usize;
 
@@ -115,10 +115,8 @@ fn back_to_start(i: usize, j: usize, n: usize, walls:&Walls) {
     }
 
     while let Some(c) = stk.pop() {
-        print!("{}", c);
+        routes.push(c);
     }
-    println!();
-    exit(0);
 }
 
 /*
@@ -126,7 +124,7 @@ fn back_to_start(i: usize, j: usize, n: usize, walls:&Walls) {
 * エリア内をDFSする
 * 非再起で書いて、掃除終了時点の座標を返却
 */
-fn cleanup_area(i: usize, j: usize, n: usize, color: &Vec<Vec<usize>>, walls: &Walls) -> (usize, usize) {
+fn cleanup_area(i: usize, j: usize, n: usize, color: &Vec<Vec<usize>>, routes: &mut Vec<(usize, usize)>, walls: &Walls) -> (usize, usize) {
     let di: Vec<isize> = vec![0, 1, 0, -1];
     let dj: Vec<isize> = vec![-1, 0, 1, 0];
 
@@ -155,7 +153,7 @@ fn cleanup_area(i: usize, j: usize, n: usize, color: &Vec<Vec<usize>>, walls: &W
 
                 visited[p_i as usize][p_j as usize] = true;
                 pos = (p_i as usize, p_j as usize);
-                print!("{}", r#move[dir]);
+                routes.push((p_i as usize, p_j as usize));
 
                 // 帰りがけの処理を追加する
 
@@ -190,10 +188,8 @@ fn cleanup_area(i: usize, j: usize, n: usize, color: &Vec<Vec<usize>>, walls: &W
             //println!("#{} : {} {} {}", color[i][j], !p_i, p_j, dir);
 
             pos = (!p_i as usize, p_j as usize);
-            print!("{}", r#move[dir]);
+            routes.push((!p_i as usize, p_j as usize));
         }
-
-
     }
     pos
 }
@@ -286,6 +282,7 @@ fn solve(){
     let mut dirt = vec![0usize; AREAS];
     let mut permutation = vec![color[0][0]];
     let mut cleaned = vec![false; AREAS]; // 一度でも掃除済みか否かを判定
+    let mut tracking_route = vec![(0usize, 0usize)]; // 到達順番を追跡
     cleaned[color[0][0]] = true;
 
     for i in 0..16 {
@@ -322,7 +319,7 @@ fn solve(){
     for (idx, &next) in permutation.iter().enumerate() {
         let (mut p_i, mut p_j) = now_pos;
         // まずは掃除をしてもらう
-        (p_i, p_j) = cleanup_area(p_i, p_j, n, &color, &walls);
+        (p_i, p_j) = cleanup_area(p_i, p_j, n, &color, &mut tracking_route, &walls);
 
         if idx != permutation.len() - 1 {
             // 最後でなければ次のエリアに移動
@@ -336,7 +333,7 @@ fn solve(){
                         && dist_from_area[next_area][ni as usize][nj as usize] + 1 == dist_from_area[next_area][p_i][p_j] {
                         p_i = ni as usize;
                         p_j = nj as usize;
-                        print!("{}", r#move[r]);
+                        tracking_route.push((p_i, p_j));
                         break;
                     }
                 }
@@ -345,8 +342,22 @@ fn solve(){
         now_pos = (p_i, p_j);
     }
 
-    back_to_start(now_pos.0, now_pos.1, n, &walls);
+    back_to_start(now_pos.0, now_pos.1, n, &mut tracking_route ,&walls);
+
+    // traking_routeを元に答えを出力
+    for i in 0..tracking_route.len()-1 {
+        let dy = tracking_route[i+1].0 as isize - tracking_route[i].0 as isize;
+        let dx = tracking_route[i+1].1 as isize - tracking_route[i].1 as isize;
+        for r in 0..4 {
+            if di[r] == dy && dj[r] == dx {
+                print!("{}", r#move[r]);
+                break;
+            }
+        }
+    }
+    println!();
 }
+
 fn main() {
     let mut i: usize = 1;
     get_time();
