@@ -76,7 +76,6 @@ pub fn evaluate(N: usize, d :&Vec<Vec<usize>>, route: &Vec<(usize, usize)>) -> i
     }
 
     let score = (2 * S.iter().sum::<i64>() + L as i64) / (2 * L) as i64;
-    println!("{}", score);
     score
 
 }
@@ -353,6 +352,8 @@ fn solve(){
     back_to_start(now_pos.0, now_pos.1, n, &mut tracking_route ,&walls);
 
 
+    let mut prev_score = evaluate(n, &d, &tracking_route);
+
     // 現時点でtracking_routeが初期状態
     // 終了時点で全箇所が通ってないと困るので、通った回数を記録しておく
     let mut passing_times = vec![vec![0usize; n]; n];
@@ -360,22 +361,68 @@ fn solve(){
         passing_times[tracking_route[i].0][tracking_route[i].1] += 1;
     }
 
-    // 'annealing: while get_time() < 1.97 {
-    //     // memo: idxとidx + rangeは、"接続先"であって、ここは変えない
-    //     let idx = rng.gen_range(0..tracking_route.len());
-    //     let range = rng.gen_range(5..20); // 現状の何手先まで変えるか 値は適当. 最後にidx+rangeに接続できないと行けない
-    //
-    //     /* その区間を変更していいか判定 */
-    //     if idx + range >= tracking_route.len()-1 { // 最後が変わると困るので、-1してる
-    //         continue 'annealing;
-    //     }
-    //     for i in idx+1..idx+range {
-    //         if passing_times[tracking_route[i].0][tracking_route[i].1] == 1 {
-    //             // ここが変わるとinvalidな解になるので、やらない
-    //             continue 'annealing;
-    //         }
-    //     }
-    // }
+    'annealing: while get_time() < 1.97 {
+        // memo: idxとidx + rangeは、"接続先"であって、ここは変えない
+        let idx = rng.gen_range(0..tracking_route.len());
+        let range = rng.gen_range(2..100); // 現状の何手先まで変えるか 値は適当. 最後にidx+rangeに接続できないと行けない
+
+        /* その区間を変更していいか判定 */
+        if idx + range >= tracking_route.len()-1 { // 最後が変わると困るので、-1してる
+            continue 'annealing;
+        }
+        for i in idx+1..idx+range {
+            if passing_times[tracking_route[i].0][tracking_route[i].1] == 1 {
+                // ここが変わるとinvalidな解になるので、やらない
+                continue 'annealing;
+            }
+        }
+
+        // 新しいルートは、とりあえずBFS。基本的には短いほうがいいので。
+        // 実際に改善するかどうかは、あとで分かるのでなんでもいいのです。
+        // ↑本当はどうでも良くはないんだけど、まぁまだあと5日あるので多少は...
+
+        let mut que = VecDeque::new();
+        que.push_back((tracking_route[idx].0, tracking_route[idx].1));
+        let mut field = vec![vec![INF; n]; n];
+        field[tracking_route[idx].0][tracking_route[idx].1] = 0;
+        while let Some((p_i, p_j)) = que.pop_front() {
+            for r in 0..4 {
+                let ni = p_i as isize + di[r];
+                let nj = p_j as isize + dj[r];
+                if walls.is_through(p_i, p_j, n, r) && field[ni as usize][nj as usize] == INF {
+                    field[ni as usize][nj as usize] = field[p_i][p_j] + 1;
+                    que.push_back((ni as usize, nj as usize));
+                }
+            }
+        }
+
+        let mut pos = tracking_route[idx + range];
+        let mut new_route = tracking_route.clone();
+        for i in (idx+1..idx+range).rev() {
+            new_route.remove(i);
+        }
+        while field[pos.0][pos.1] != 0 {
+            // 距離が-1になる場所に移動
+            for r in 0..4 {
+                let ni = pos.0 as isize + di[r];
+                let nj =pos.1 as isize + dj[r];
+                if walls.is_through(pos.0, pos.1, n, r)
+                    && field[ni as usize][nj as usize] + 1 == field[pos.0][pos.1] {
+                    pos.0 = ni as usize;
+                    pos.1 = nj as usize;
+                    new_route.insert(idx+1, pos);
+                    break;
+                }
+            }
+        }
+        let new_score = evaluate(n, &d, &new_route);
+
+        if prev_score > new_score {
+            // 改善しているのなら採用
+            prev_score = new_score;
+            tracking_route = new_route;
+        }
+    }
 
     // tracking_routeを元に答えを出力
     for i in 0..tracking_route.len()-1 {
