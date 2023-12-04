@@ -43,6 +43,44 @@ impl Walls {
     }
 }
 
+
+pub fn evaluate(N: usize, d :&Vec<Vec<usize>>, route: &Vec<(usize, usize)>) -> i64 {
+    // route => 持ってる
+    let mut last_visited = vec![vec![0usize; N]; N];
+    let L = route.len();
+    let mut S = vec![];
+
+    for t in 0..L {
+        last_visited[route[t].0][route[t].1] = t;
+    }
+
+    let mut s = 0;
+    let mut sum_d = 0;
+    for i in 0..N {
+        for j in 0..N {
+            s += (L - last_visited[i][j]) as i64 * d[i][j] as i64;
+            sum_d += d[i][j];
+        }
+    }
+    let mut last_visited2 = last_visited.clone();
+    let mut sum = vec![vec![0i64; N]; N];
+    for t in L..2 * L {
+        let (i, j) = route[t - L];
+        let dt = (t - last_visited2[i][j]) as i64;
+        let a = dt * d[i][j] as i64;
+        sum[i][j] += dt * (dt - 1) / 2 * d[i][j] as i64;
+        s -= a;
+        last_visited2[i][j] = t;
+        S.push(s);
+        s += sum_d as i64;
+    }
+
+    let score = (2 * S.iter().sum::<i64>() + L as i64) / (2 * L) as i64;
+    println!("{}", score);
+    score
+
+}
+
 #[inline]
 fn get_time() -> f64 {  // sec
 static mut STIME: f64 = -1.0;
@@ -82,8 +120,6 @@ fn back_to_start(i: usize, j: usize, n: usize, routes: &mut Vec<(usize, usize)> 
 
     let di: Vec<isize> = vec![0, 1, 0, -1];
     let dj: Vec<isize> = vec![-1, 0, 1, 0];
-
-    let r#move = vec!['L', 'D', 'R', 'U'];
 
     let mut que = VecDeque::new();
     que.push_back((i, j));
@@ -127,8 +163,6 @@ fn back_to_start(i: usize, j: usize, n: usize, routes: &mut Vec<(usize, usize)> 
 fn cleanup_area(i: usize, j: usize, n: usize, color: &Vec<Vec<usize>>, routes: &mut Vec<(usize, usize)>, dirts: &mut Vec<Vec<usize>>, d: &Vec<Vec<usize>> ,walls: &Walls) -> (usize, usize) {
     let di: Vec<isize> = vec![0, 1, 0, -1];
     let dj: Vec<isize> = vec![-1, 0, 1, 0];
-
-    let r#move = vec!['L', 'D', 'R', 'U'];
 
     let mut pos = (i, j); // 今の位置
 
@@ -183,11 +217,6 @@ fn cleanup_area(i: usize, j: usize, n: usize, color: &Vec<Vec<usize>>, routes: &
             }
         }else{
             // 帰りがけは絶対出力
-            let ni = !p_i + di[dir];
-            let nj = p_j as isize + dj[dir];
-
-            //println!("#{} : {} {} {}", color[i][j], !p_i, p_j, dir);
-
             pos = (!p_i as usize, p_j as usize);
             routes.push((!p_i as usize, p_j as usize));
             update_dirt(dirts, d, &mut vec![0usize; color.len()], color, (!p_i as usize, p_j as usize));
@@ -323,7 +352,32 @@ fn solve(){
 
     back_to_start(now_pos.0, now_pos.1, n, &mut tracking_route ,&walls);
 
-    // traking_routeを元に答えを出力
+
+    // 現時点でtracking_routeが初期状態
+    // 終了時点で全箇所が通ってないと困るので、通った回数を記録しておく
+    let mut passing_times = vec![vec![0usize; n]; n];
+    for i in 0..tracking_route.len() {
+        passing_times[tracking_route[i].0][tracking_route[i].1] += 1;
+    }
+
+    // 'annealing: while get_time() < 1.97 {
+    //     // memo: idxとidx + rangeは、"接続先"であって、ここは変えない
+    //     let idx = rng.gen_range(0..tracking_route.len());
+    //     let range = rng.gen_range(5..20); // 現状の何手先まで変えるか 値は適当. 最後にidx+rangeに接続できないと行けない
+    //
+    //     /* その区間を変更していいか判定 */
+    //     if idx + range >= tracking_route.len()-1 { // 最後が変わると困るので、-1してる
+    //         continue 'annealing;
+    //     }
+    //     for i in idx+1..idx+range {
+    //         if passing_times[tracking_route[i].0][tracking_route[i].1] == 1 {
+    //             // ここが変わるとinvalidな解になるので、やらない
+    //             continue 'annealing;
+    //         }
+    //     }
+    // }
+
+    // tracking_routeを元に答えを出力
     for i in 0..tracking_route.len()-1 {
         let dy = tracking_route[i+1].0 as isize - tracking_route[i].0 as isize;
         let dx = tracking_route[i+1].1 as isize - tracking_route[i].1 as isize;
@@ -335,7 +389,11 @@ fn solve(){
         }
     }
     println!();
+
+    evaluate(n, &d, &tracking_route);
 }
+
+
 
 fn update_dirt(dirts: &mut Vec<Vec<usize>>, d: &Vec<Vec<usize>>, area_dirt: &mut Vec<usize>, color: &Vec<Vec<usize>>, p: (usize, usize)) {
     area_dirt.fill(0);
@@ -352,6 +410,7 @@ fn update_dirt(dirts: &mut Vec<Vec<usize>>, d: &Vec<Vec<usize>>, area_dirt: &mut
     area_dirt[color[p.0][p.1]] -= dirts[p.0][p.1];
     dirts[p.0][p.1] = 0;
 }
+
 
 fn main() {
     let mut i: usize = 1;
