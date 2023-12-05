@@ -20,6 +20,8 @@ use rand::Rng;
 
 static INF: usize = 1e18 as usize;
 static AREAS: usize = 16;
+
+static TL: f64 = 1.95;
 struct Walls {
     wh: Vec<Vec<char>>,
     ww: Vec<Vec<char>>,
@@ -239,8 +241,6 @@ fn solve(){
     let di: Vec<isize> = vec![0, 1, 0, -1];
     let dj: Vec<isize> = vec![-1, 0, 1, 0];
     let r#move = vec!['L', 'D', 'R', 'U'];
-
-
     let mut rng = rand::thread_rng();
 
     // エリア分け
@@ -286,6 +286,30 @@ fn solve(){
                 if Walls::is_through(&walls, p_i, p_j, n, r) && dist_from_area[clr][ni as usize][nj as usize] == INF {
                     dist_from_area[clr][ni as usize][nj as usize] = dist_from_area[clr][p_i][p_j] + 1;
                     que.push_back((ni as usize, nj as usize));
+                }
+            }
+        }
+    }
+
+    /*
+    各頂点からの距離をそれぞれ調べる
+    */
+    let mut dist_from_point = vec![vec![vec![INF; n]; n]; n * n];
+    for i in 0..n {
+        for j in 0..n {
+            let idx = i * n + j;
+
+            dist_from_point[idx][i][j] = 0;
+            let mut que = VecDeque::new();
+            que.push_back((i, j));
+            while let Some((p_i, p_j)) = que.pop_front() {
+                for r in 0..4 {
+                    let ni = p_i as isize + di[r];
+                    let nj = p_j as isize + dj[r];
+                    if Walls::is_through(&walls, p_i, p_j, n, r) && dist_from_point[idx][ni as usize][nj as usize] == INF {
+                        dist_from_point[idx][ni as usize][nj as usize] = dist_from_point[idx][p_i][p_j] + 1;
+                        que.push_back((ni as usize, nj as usize));
+                    }
                 }
             }
         }
@@ -360,8 +384,11 @@ fn solve(){
         passing_times[tracking_route[i].0][tracking_route[i].1] += 1;
     }
 
-    let mut cnt = 1usize;
-    'annealing: while get_time() < 1.9 {
+    let mut cnt = 0usize;
+
+    let start_temp = 0isize;
+    let end_temp = 0isize;
+    'annealing: while get_time() < TL {
         // memo: idxとidx + rangeは、"接続先"であって、ここは変えない
         let idx = rng.gen_range(0..tracking_route.len());
         let range = rng.gen_range(5..100); // 現状の何手先まで変えるか 値は適当. 最後にidx+rangeに接続できないと行けない
@@ -385,36 +412,18 @@ fn solve(){
         // 新しいルートは、とりあえずBFS。基本的には短いほうがいいので。
         // 実際に改善するかどうかは、あとで分かるのでなんでもいいのです。
         // ↑本当はどうでも良くはないんだけど、まぁまだあと5日あるので多少は...
-
-        let mut que = VecDeque::new();
-        que.push_back((tracking_route[idx].0, tracking_route[idx].1));
-        let mut field = vec![vec![INF; n]; n];
-        field[tracking_route[idx].0][tracking_route[idx].1] = 0;
-        'bfs: while let Some((p_i, p_j)) = que.pop_front() {
-            for r in 0..4 {
-                let ni = p_i as isize + di[r];
-                let nj = p_j as isize + dj[r];
-                if walls.is_through(p_i, p_j, n, r) && field[ni as usize][nj as usize] == INF {
-                    field[ni as usize][nj as usize] = field[p_i][p_j] + 1;
-                    que.push_back((ni as usize, nj as usize));
-                    if (ni as usize, nj as usize) == tracking_route[idx + range] {
-                        break 'bfs;
-                    }
-                }
-            }
-        }
-
+        
         let mut pos = tracking_route[idx + range];
         let mut new_route = tracking_route.clone();
 
         let mut update = vec![];
-        while field[pos.0][pos.1] != 0 {
+        while dist_from_point[tracking_route[idx].0 * n + tracking_route[idx].1][pos.0][pos.1] != 0 {
             // 距離が-1になる場所に移動
             for r in 0..4 {
                 let ni = pos.0 as isize + di[r];
                 let nj =pos.1 as isize + dj[r];
                 if walls.is_through(pos.0, pos.1, n, r)
-                    && field[ni as usize][nj as usize] + 1 == field[pos.0][pos.1] {
+                    && dist_from_point[tracking_route[idx].0 * n + tracking_route[idx].1][ni as usize][nj as usize] + 1 == dist_from_point[tracking_route[idx].0 * n + tracking_route[idx].1][pos.0][pos.1] {
                     pos.0 = ni as usize;
                     pos.1 = nj as usize;
                     update.push(pos);
@@ -427,8 +436,10 @@ fn solve(){
         new_route.splice(idx+1..idx+range, update.clone());
         let new_score = evaluate(n, &d, &new_route);
 
+        let temp = start_temp as f64 + (end_temp - start_temp) as f64 * get_time() / TL;
+        let prob = ((prev_score - new_score) as f64 / temp).exp();
 
-        if prev_score > new_score {
+        if prob > (rng.gen_range(0..INF) % INF) as f64 / INF as f64 {
             // 改善しているのなら採用
             prev_score = new_score;
 
@@ -456,6 +467,7 @@ fn solve(){
         }
     }
     println!();
+    println!("{}", cnt);
 }
 
 fn update_dirt(dirts: &mut Vec<Vec<usize>>, d: &Vec<Vec<usize>>, area_dirt: &mut Vec<usize>, color: &Vec<Vec<usize>>, p: (usize, usize)) {
@@ -478,11 +490,11 @@ fn update_dirt(dirts: &mut Vec<Vec<usize>>, d: &Vec<Vec<usize>>, area_dirt: &mut
 fn main() {
     let mut i: usize = 1;
     get_time();
-/*    /* 複数テストケースならコメントアウトを外す */
-    let mut input = String::new();
-    io::stdout().flush().unwrap();
-    io::stdin().read_line(&mut input).unwrap();
-    i = input.trim().parse().unwrap();*/
+    /*    /* 複数テストケースならコメントアウトを外す */
+        let mut input = String::new();
+        io::stdout().flush().unwrap();
+        io::stdin().read_line(&mut input).unwrap();
+        i = input.trim().parse().unwrap();*/
 
     while i != 0 {
         solve();
