@@ -392,7 +392,8 @@ fn solve(){
 
     let start_temp = 50isize;
     let end_temp = 10isize;
-
+    let mut cnt = 0usize;
+    let mut new_route;
     'annealing: while get_time() < TL {
         // memo: idxとidx + rangeは、"接続先"であって、ここは変えない
         let idx = rng.gen_range(0..tracking_route.len());
@@ -416,7 +417,8 @@ fn solve(){
         // ↑本当はどうでも良くはないんだけど、まぁまだあと5日あるので多少は...
 
         let mut pos = tracking_route[idx + range];
-        let mut new_route = tracking_route.clone();
+        new_route = tracking_route.clone();
+        cnt += 1;
 
         let mut update = vec![];
         while dist_from_point[tracking_route[idx].0 * n + tracking_route[idx].1][pos.0][pos.1] != 0 {
@@ -454,7 +456,6 @@ fn solve(){
 
             swap(&mut tracking_route, &mut new_route);
         }
-
     }
 
     // tracking_routeを元に答えを出力
@@ -469,24 +470,8 @@ fn solve(){
         }
     }
     println!();
+    // println!("{}", cnt);
 }
-
-fn update_dirt(dirts: &mut Vec<Vec<usize>>, d: &Vec<Vec<usize>>, area_dirt: &mut Vec<usize>, color: &Vec<Vec<usize>>, p: (usize, usize)) {
-    area_dirt.fill(0);
-
-    // 汚れの更新
-    for i in 0..dirts.len() {
-        for j in 0..dirts[i].len() {
-            dirts[i][j] += d[i][j].sqrt();
-            area_dirt[color[i][j]] += dirts[i][j];
-        }
-    }
-
-    // 今いる地点は掃除されるので値は0に
-    area_dirt[color[p.0][p.1]] -= dirts[p.0][p.1];
-    dirts[p.0][p.1] = 0;
-}
-
 
 fn main() {
     let mut i: usize = 1;
