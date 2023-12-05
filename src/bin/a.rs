@@ -10,6 +10,7 @@
 
 
 use std::collections::VecDeque;
+use std::mem::swap;
 use std::process::exit;
 use num_integer::Roots;
 // -*- coding:utf-8-unix -*-
@@ -122,8 +123,8 @@ fn back_to_start(i: usize, j: usize, n: usize, routes: &mut Vec<(usize, usize)> 
 
     let mut que = VecDeque::new();
     que.push_back((i, j));
-    dist[i][j] == 0;
-    before[i][j] == 4;
+    dist[i][j] = 0;
+    before[i][j] = 4;
     while let Some((pi, pj)) = que.pop_front() {
         for r in 0..4 {
             let ni = pi as isize + di[r];
@@ -295,12 +296,10 @@ fn solve(){
     平均でやる or 総和でやる ?
        => 平均で
     */
-    let mut sum_d = vec![0usize; AREAS];
     let mut cnt = vec![0usize; AREAS];
 
     for i in 0..n {
         for j in 0..n {
-            sum_d[color[i][j]] += d[i][j];
             cnt[color[i][j]] += 1;
         }
     }
@@ -361,21 +360,27 @@ fn solve(){
         passing_times[tracking_route[i].0][tracking_route[i].1] += 1;
     }
 
-    'annealing: while get_time() < 1.97 {
+    let mut cnt = 1usize;
+    'annealing: while get_time() < 1.9 {
         // memo: idxとidx + rangeは、"接続先"であって、ここは変えない
         let idx = rng.gen_range(0..tracking_route.len());
-        let range = rng.gen_range(2..100); // 現状の何手先まで変えるか 値は適当. 最後にidx+rangeに接続できないと行けない
+        let range = rng.gen_range(5..100); // 現状の何手先まで変えるか 値は適当. 最後にidx+rangeに接続できないと行けない
 
         /* その区間を変更していいか判定 */
+        let mut passed_in_range = vec![vec![0usize; n]; n];
         if idx + range >= tracking_route.len()-1 { // 最後が変わると困るので、-1してる
             continue 'annealing;
         }
-        for i in idx+1..idx+range {
-            if passing_times[tracking_route[i].0][tracking_route[i].1] == 1 {
+        for i in idx..idx+range {
+            passed_in_range[tracking_route[i].0][tracking_route[i].1] += 1;
+            if passing_times[tracking_route[i].0][tracking_route[i].1] == passed_in_range[tracking_route[i].0][tracking_route[i].1] {
                 // ここが変わるとinvalidな解になるので、やらない
                 continue 'annealing;
             }
         }
+
+        cnt += 1;
+
 
         // 新しいルートは、とりあえずBFS。基本的には短いほうがいいので。
         // 実際に改善するかどうかは、あとで分かるのでなんでもいいのです。
@@ -385,22 +390,24 @@ fn solve(){
         que.push_back((tracking_route[idx].0, tracking_route[idx].1));
         let mut field = vec![vec![INF; n]; n];
         field[tracking_route[idx].0][tracking_route[idx].1] = 0;
-        while let Some((p_i, p_j)) = que.pop_front() {
+        'bfs: while let Some((p_i, p_j)) = que.pop_front() {
             for r in 0..4 {
                 let ni = p_i as isize + di[r];
                 let nj = p_j as isize + dj[r];
                 if walls.is_through(p_i, p_j, n, r) && field[ni as usize][nj as usize] == INF {
                     field[ni as usize][nj as usize] = field[p_i][p_j] + 1;
                     que.push_back((ni as usize, nj as usize));
+                    if (ni as usize, nj as usize) == tracking_route[idx + range] {
+                        break 'bfs;
+                    }
                 }
             }
         }
 
         let mut pos = tracking_route[idx + range];
         let mut new_route = tracking_route.clone();
-        for i in (idx+1..idx+range).rev() {
-            new_route.remove(i);
-        }
+
+        let mut update = vec![];
         while field[pos.0][pos.1] != 0 {
             // 距離が-1になる場所に移動
             for r in 0..4 {
@@ -410,18 +417,31 @@ fn solve(){
                     && field[ni as usize][nj as usize] + 1 == field[pos.0][pos.1] {
                     pos.0 = ni as usize;
                     pos.1 = nj as usize;
-                    new_route.insert(idx+1, pos);
+                    update.push(pos);
                     break;
                 }
             }
         }
+
+        update.reverse();
+        new_route.splice(idx+1..idx+range, update.clone());
         let new_score = evaluate(n, &d, &new_route);
+
 
         if prev_score > new_score {
             // 改善しているのなら採用
             prev_score = new_score;
-            tracking_route = new_route;
+
+            for p in update {
+                passing_times[p.0][p.1] += 1;
+            }
+            for i in idx+1..idx+range{
+                passing_times[tracking_route[i].0][tracking_route[i].1] -= 1;
+            }
+
+            swap(&mut tracking_route, &mut new_route);
         }
+
     }
 
     // tracking_routeを元に答えを出力
@@ -436,11 +456,7 @@ fn solve(){
         }
     }
     println!();
-
-    evaluate(n, &d, &tracking_route);
 }
-
-
 
 fn update_dirt(dirts: &mut Vec<Vec<usize>>, d: &Vec<Vec<usize>>, area_dirt: &mut Vec<usize>, color: &Vec<Vec<usize>>, p: (usize, usize)) {
     area_dirt.fill(0);
@@ -448,7 +464,7 @@ fn update_dirt(dirts: &mut Vec<Vec<usize>>, d: &Vec<Vec<usize>>, area_dirt: &mut
     // 汚れの更新
     for i in 0..dirts.len() {
         for j in 0..dirts[i].len() {
-            dirts[i][j] += d[i][j];
+            dirts[i][j] += d[i][j].sqrt();
             area_dirt[color[i][j]] += dirts[i][j];
         }
     }
