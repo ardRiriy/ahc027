@@ -10,6 +10,7 @@
 
 
 use std::collections::VecDeque;
+use std::mem::swap;
 use std::process::exit;
 use num_integer::Roots;
 // -*- coding:utf-8-unix -*-
@@ -41,6 +42,43 @@ impl Walls {
             false
         }
     }
+}
+
+
+pub fn evaluate(N: usize, d :&Vec<Vec<usize>>, route: &Vec<(usize, usize)>) -> i64 {
+    // route => 持ってる
+    let mut last_visited = vec![vec![0usize; N]; N];
+    let L = route.len();
+    let mut S = vec![];
+
+    for t in 0..L {
+        last_visited[route[t].0][route[t].1] = t;
+    }
+
+    let mut s = 0;
+    let mut sum_d = 0;
+    for i in 0..N {
+        for j in 0..N {
+            s += (L - last_visited[i][j]) as i64 * d[i][j] as i64;
+            sum_d += d[i][j];
+        }
+    }
+    let mut last_visited2 = last_visited.clone();
+    let mut sum = vec![vec![0i64; N]; N];
+    for t in L..2 * L {
+        let (i, j) = route[t - L];
+        let dt = (t - last_visited2[i][j]) as i64;
+        let a = dt * d[i][j] as i64;
+        sum[i][j] += dt * (dt - 1) / 2 * d[i][j] as i64;
+        s -= a;
+        last_visited2[i][j] = t;
+        S.push(s);
+        s += sum_d as i64;
+    }
+
+    let score = (2 * S.iter().sum::<i64>() + L as i64) / (2 * L) as i64;
+    score
+
 }
 
 #[inline]
@@ -83,12 +121,10 @@ fn back_to_start(i: usize, j: usize, n: usize, routes: &mut Vec<(usize, usize)> 
     let di: Vec<isize> = vec![0, 1, 0, -1];
     let dj: Vec<isize> = vec![-1, 0, 1, 0];
 
-    let r#move = vec!['L', 'D', 'R', 'U'];
-
     let mut que = VecDeque::new();
     que.push_back((i, j));
-    dist[i][j] == 0;
-    before[i][j] == 4;
+    dist[i][j] = 0;
+    before[i][j] = 4;
     while let Some((pi, pj)) = que.pop_front() {
         for r in 0..4 {
             let ni = pi as isize + di[r];
@@ -127,8 +163,6 @@ fn back_to_start(i: usize, j: usize, n: usize, routes: &mut Vec<(usize, usize)> 
 fn cleanup_area(i: usize, j: usize, n: usize, color: &Vec<Vec<usize>>, routes: &mut Vec<(usize, usize)>, dirts: &mut Vec<Vec<usize>>, d: &Vec<Vec<usize>> ,walls: &Walls) -> (usize, usize) {
     let di: Vec<isize> = vec![0, 1, 0, -1];
     let dj: Vec<isize> = vec![-1, 0, 1, 0];
-
-    let r#move = vec!['L', 'D', 'R', 'U'];
 
     let mut pos = (i, j); // 今の位置
 
@@ -183,11 +217,6 @@ fn cleanup_area(i: usize, j: usize, n: usize, color: &Vec<Vec<usize>>, routes: &
             }
         }else{
             // 帰りがけは絶対出力
-            let ni = !p_i + di[dir];
-            let nj = p_j as isize + dj[dir];
-
-            //println!("#{} : {} {} {}", color[i][j], !p_i, p_j, dir);
-
             pos = (!p_i as usize, p_j as usize);
             routes.push((!p_i as usize, p_j as usize));
             update_dirt(dirts, d, &mut vec![0usize; color.len()], color, (!p_i as usize, p_j as usize));
@@ -267,12 +296,10 @@ fn solve(){
     平均でやる or 総和でやる ?
        => 平均で
     */
-    let mut sum_d = vec![0usize; AREAS];
     let mut cnt = vec![0usize; AREAS];
 
     for i in 0..n {
         for j in 0..n {
-            sum_d[color[i][j]] += d[i][j];
             cnt[color[i][j]] += 1;
         }
     }
@@ -323,7 +350,101 @@ fn solve(){
 
     back_to_start(now_pos.0, now_pos.1, n, &mut tracking_route ,&walls);
 
-    // traking_routeを元に答えを出力
+
+    let mut prev_score = evaluate(n, &d, &tracking_route);
+
+    // 現時点でtracking_routeが初期状態
+    // 終了時点で全箇所が通ってないと困るので、通った回数を記録しておく
+    let mut passing_times = vec![vec![0usize; n]; n];
+    for i in 0..tracking_route.len() {
+        passing_times[tracking_route[i].0][tracking_route[i].1] += 1;
+    }
+
+    let mut cnt = 1usize;
+    'annealing: while get_time() < 1.9 {
+        // memo: idxとidx + rangeは、"接続先"であって、ここは変えない
+        let idx = rng.gen_range(0..tracking_route.len());
+        let range = rng.gen_range(5..100); // 現状の何手先まで変えるか 値は適当. 最後にidx+rangeに接続できないと行けない
+
+        /* その区間を変更していいか判定 */
+        let mut passed_in_range = vec![vec![0usize; n]; n];
+        if idx + range >= tracking_route.len()-1 { // 最後が変わると困るので、-1してる
+            continue 'annealing;
+        }
+        for i in idx..idx+range {
+            passed_in_range[tracking_route[i].0][tracking_route[i].1] += 1;
+            if passing_times[tracking_route[i].0][tracking_route[i].1] == passed_in_range[tracking_route[i].0][tracking_route[i].1] {
+                // ここが変わるとinvalidな解になるので、やらない
+                continue 'annealing;
+            }
+        }
+
+        cnt += 1;
+
+
+        // 新しいルートは、とりあえずBFS。基本的には短いほうがいいので。
+        // 実際に改善するかどうかは、あとで分かるのでなんでもいいのです。
+        // ↑本当はどうでも良くはないんだけど、まぁまだあと5日あるので多少は...
+
+        let mut que = VecDeque::new();
+        que.push_back((tracking_route[idx].0, tracking_route[idx].1));
+        let mut field = vec![vec![INF; n]; n];
+        field[tracking_route[idx].0][tracking_route[idx].1] = 0;
+        'bfs: while let Some((p_i, p_j)) = que.pop_front() {
+            for r in 0..4 {
+                let ni = p_i as isize + di[r];
+                let nj = p_j as isize + dj[r];
+                if walls.is_through(p_i, p_j, n, r) && field[ni as usize][nj as usize] == INF {
+                    field[ni as usize][nj as usize] = field[p_i][p_j] + 1;
+                    que.push_back((ni as usize, nj as usize));
+                    if (ni as usize, nj as usize) == tracking_route[idx + range] {
+                        break 'bfs;
+                    }
+                }
+            }
+        }
+
+        let mut pos = tracking_route[idx + range];
+        let mut new_route = tracking_route.clone();
+
+        let mut update = vec![];
+        while field[pos.0][pos.1] != 0 {
+            // 距離が-1になる場所に移動
+            for r in 0..4 {
+                let ni = pos.0 as isize + di[r];
+                let nj =pos.1 as isize + dj[r];
+                if walls.is_through(pos.0, pos.1, n, r)
+                    && field[ni as usize][nj as usize] + 1 == field[pos.0][pos.1] {
+                    pos.0 = ni as usize;
+                    pos.1 = nj as usize;
+                    update.push(pos);
+                    break;
+                }
+            }
+        }
+
+        update.reverse();
+        new_route.splice(idx+1..idx+range, update.clone());
+        let new_score = evaluate(n, &d, &new_route);
+
+
+        if prev_score > new_score {
+            // 改善しているのなら採用
+            prev_score = new_score;
+
+            for p in update {
+                passing_times[p.0][p.1] += 1;
+            }
+            for i in idx+1..idx+range{
+                passing_times[tracking_route[i].0][tracking_route[i].1] -= 1;
+            }
+
+            swap(&mut tracking_route, &mut new_route);
+        }
+
+    }
+
+    // tracking_routeを元に答えを出力
     for i in 0..tracking_route.len()-1 {
         let dy = tracking_route[i+1].0 as isize - tracking_route[i].0 as isize;
         let dx = tracking_route[i+1].1 as isize - tracking_route[i].1 as isize;
@@ -343,7 +464,7 @@ fn update_dirt(dirts: &mut Vec<Vec<usize>>, d: &Vec<Vec<usize>>, area_dirt: &mut
     // 汚れの更新
     for i in 0..dirts.len() {
         for j in 0..dirts[i].len() {
-            dirts[i][j] += d[i][j];
+            dirts[i][j] += d[i][j].sqrt();
             area_dirt[color[i][j]] += dirts[i][j];
         }
     }
@@ -352,6 +473,7 @@ fn update_dirt(dirts: &mut Vec<Vec<usize>>, d: &Vec<Vec<usize>>, area_dirt: &mut
     area_dirt[color[p.0][p.1]] -= dirts[p.0][p.1];
     dirts[p.0][p.1] = 0;
 }
+
 
 fn main() {
     let mut i: usize = 1;

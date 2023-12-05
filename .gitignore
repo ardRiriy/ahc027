@@ -1,3 +1,5 @@
 in/
 out/
 ahc027_tool/
+run.sh
+test.sh
