@@ -151,6 +151,7 @@ fn back_to_start(i: usize, j: usize, n: usize, routes: &mut Vec<(usize, usize)> 
 * 非再起で書いて、掃除終了時点の座標を返却
 */
 fn cleanup_area(i: usize, j: usize, n: usize, color: &Vec<Vec<usize>>, routes: &mut Vec<(usize, usize)>, walls: &Walls) -> (usize, usize) {
+
     let mut pos = (i, j); // 今の位置
 
     /* DFS */
@@ -472,6 +473,7 @@ fn solve(){
     println!();
     // println!("{}", cnt);
 }
+
 
 fn main() {
     let mut i: usize = 1;
