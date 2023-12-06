@@ -11,7 +11,6 @@
 
 use std::collections::VecDeque;
 use std::mem::swap;
-use std::process::exit;
 use num_integer::Roots;
 // -*- coding:utf-8-unix -*-
 use proconio::input;
@@ -302,12 +301,10 @@ fn solve(){
     平均でやる or 総和でやる ?
        => 平均で
     */
-    let mut cnt = vec![0usize; AREAS];
     let mut sum_d = vec![0usize; AREAS];
 
     for i in 0..n {
         for j in 0..n {
-            cnt[color[i][j]] += 1;
             sum_d[color[i][j]] += d[i][j];
         }
     }
@@ -317,15 +314,12 @@ fn solve(){
       はじめ、色0が全部0で、汚れやすさが一番でかいところを掃除しに行く
     */
     let mut dirt = vec![0usize; AREAS];
-    let mut permutation = vec![color[0][0]];
+    let mut permutation = vec![];
     let mut cleaned = vec![false; AREAS]; // 一度でも掃除済みか否かを判定
     let mut tracking_route = vec![(0usize, 0usize)]; // 到達順番を追跡
-    cleaned[color[0][0]] = true;
 
     for i in 0..16 {
-        if color[0][0] != i {
-            dirt[i] = sum_d[i].sqrt();
-        }
+        dirt[i] = sum_d[i].sqrt();
     }
 
     while !cleaned.iter().all(|b| *b) {
@@ -339,9 +333,30 @@ fn solve(){
             }
         }
 
-        cleaned[max_idx] = true;
         permutation.push(max_idx);
+        cleaned[max_idx] = true;
 
+        // 汚れを更新
+        for i in 0..AREAS {
+            if i == max_idx {
+                dirt[i] = 0;
+            }else{
+                dirt[i] += sum_d[i].sqrt();
+            }
+        }
+    }
+
+    for _ in 0..3 {
+        // 一番汚れているエリアを探す
+        let mut max_idx = 0usize;
+        let mut max_dirt = 0usize;
+        for i in 0..AREAS {
+            if max_dirt < dirt[i] {
+                max_dirt = dirt[i];
+                max_idx = i;
+            }
+        }
+        permutation.push(max_idx);
         // 汚れを更新
         for i in 0..AREAS {
             if i == max_idx {
@@ -391,8 +406,8 @@ fn solve(){
         passing_times[tracking_route[i].0][tracking_route[i].1] += 1;
     }
 
-    let start_temp = 50isize;
-    let end_temp = 10isize;
+    let start_temp = 75isize;
+    let end_temp = 15isize;
     let mut cnt = 0usize;
     let mut new_route;
     'annealing: while get_time() < TL {
@@ -413,29 +428,35 @@ fn solve(){
             }
         }
 
+        cnt += 1;
+
         // 新しいルートは、とりあえずBFS。基本的には短いほうがいいので。
         // 実際に改善するかどうかは、あとで分かるのでなんでもいいのです。
         // ↑本当はどうでも良くはないんだけど、まぁまだあと5日あるので多少は...
 
         let mut pos = tracking_route[idx + range];
         new_route = tracking_route.clone();
-        cnt += 1;
 
         let mut update = vec![];
-        while dist_from_point[tracking_route[idx].0 * n + tracking_route[idx].1][pos.0][pos.1] != 0 {
-            // 距離が-1になる場所に移動
-            for r in 0..4 {
-                let ni = pos.0 as isize + DI[r];
-                let nj =pos.1 as isize + DJ[r];
-                if walls.is_through(pos.0, pos.1, n, r)
-                    && dist_from_point[tracking_route[idx].0 * n + tracking_route[idx].1][ni as usize][nj as usize] + 1 == dist_from_point[tracking_route[idx].0 * n + tracking_route[idx].1][pos.0][pos.1] {
-                    pos.0 = ni as usize;
-                    pos.1 = nj as usize;
-                    update.push(pos);
-                    break;
+        let target = vec![(rng.gen_range(0..n), rng.gen_range(0..n)), tracking_route[idx]];
+
+        for i in 0..2 {
+            while dist_from_point[target[i].0 * n + target[i].1][pos.0][pos.1] != 0 {
+                // 距離が-1になる場所に移動
+                for r in 0..4 {
+                    let ni = pos.0 as isize + DI[r];
+                    let nj =pos.1 as isize + DJ[r];
+                    if walls.is_through(pos.0, pos.1, n, r)
+                        && dist_from_point[target[i].0 * n + target[i].1][ni as usize][nj as usize] + 1 == dist_from_point[target[i].0 * n + target[i].1][pos.0][pos.1] {
+                        pos.0 = ni as usize;
+                        pos.1 = nj as usize;
+                        update.push(pos);
+                        break;
+                    }
                 }
             }
         }
+
 
         update.reverse();
         new_route.splice(idx+1..idx+range, update.clone());
